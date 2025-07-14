@@ -31,7 +31,7 @@ A comprehensive real estate platform built with Django backend, jQuery/Dojo fron
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Shivamsky0808/Real_Estate_Portal.git
+git clone <repository-url>
 cd real_estate_portal
 ```
 
