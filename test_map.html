@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Test</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .map-container {
+            height: 600px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .info {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real Estate Portal - Map Test</h1>
+    <div class="info">
+        <p>This is a test page to verify the map functionality.</p>
+        <p id="status">Loading...</p>
+        <p id="property-count">Properties: 0</p>
+    </div>
+    
+    <div id="map" class="map-container"></div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <script>
+        let map;
+        let markers = [];
+        let markerClusterGroup;
+        
+        function initMap() {
+            // Initialize the map
+            map = L.map('map', {
+                center: [20.5937, 78.9629], // Center of India
+                zoom: 5
+            });
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Initialize marker cluster group
+            markerClusterGroup = L.markerClusterGroup({
+                chunkedLoading: true,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+                maxClusterRadius: 80
+            });
+            map.addLayer(markerClusterGroup);
+            
+            // Load properties
+            loadProperties();
+        }
+        
+        function loadProperties() {
+            const status = document.getElementById('status');
+            const propertyCount = document.getElementById('property-count');
+            
+            status.textContent = 'Loading properties...';
+            status.className = '';
+            
+            fetch('/properties/api/properties/')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    status.textContent = 'Properties loaded successfully!';
+                    status.className = 'success';
+                    
+                    if (data.results && data.results.length > 0) {
+                        const validProperties = [];
+                        const bounds = [];
+                        
+                        data.results.forEach(property => {
+                            const lat = parseFloat(property.latitude);
+                            const lng = parseFloat(property.longitude);
+                            
+                            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                                validProperties.push(property);
+                                
+                                // Create marker
+                                const marker = L.marker([lat, lng])
+                                    .bindPopup(`
+                                        <h6>${property.title}</h6>
+                                        <p><strong>Type:</strong> ${property.property_type}</p>
+                                        <p><strong>Price:</strong> ₹${parseFloat(property.price).toLocaleString('en-IN')}</p>
+                                        <p><strong>Location:</strong> ${property.city}, ${property.state}</p>
+                                        <p><strong>Area:</strong> ${property.area} sqft</p>
+                                    `);
+                                
+                                markerClusterGroup.addLayer(marker);
+                                bounds.push([lat, lng]);
+                            }
+                        });
+                        
+                        propertyCount.textContent = `Properties: ${validProperties.length} (with valid coordinates)`;
+                        
+                        // Fit map to show all markers
+                        if (bounds.length > 0) {
+                            if (bounds.length === 1) {
+                                map.setView(bounds[0], 15);
+                            } else {
+                                map.fitBounds(bounds, { padding: [20, 20] });
+                            }
+                        }
+                    } else {
+                        propertyCount.textContent = 'Properties: 0';
+                        status.textContent = 'No properties found';
+                        status.className = 'error';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading properties:', error);
+                    status.textContent = `Error loading properties: ${error.message}`;
+                    status.className = 'error';
+                    propertyCount.textContent = 'Properties: Error';
+                });
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initMap);
+    </script>
+</body>
+</html>
