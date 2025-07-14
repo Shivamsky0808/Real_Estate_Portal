@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Agent Profile - Real Estate Portal{% endblock %}
+
+{% block content %}
+<div id="agent-profile" class="py-4">
+    <div id="agent-loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading agent profile...</p>
+    </div>
+
+    <div id="agent-detail" style="display: none;">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <img src="/static/img/default-agent.jpg" alt="Agent Name" class="rounded-circle me-3"
+                                 style="width: 100px; height: 100px; object-fit: cover;" id="agent-profile-image">
+                            <div>
+                                <h3 class="card-title mb-0" id="agent-name">Agent Name</h3>
+                                <p class="text-muted mb-2" id="agency-name">Agency Name</p>
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="stars me-2">★★★★★</div>
+                                    <small class="text-muted">(0/5)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <h5>About Me</h5>
+                            <p id="agent-bio">Professional real estate agent.</p>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Experience</small>
+                                <div class="fw-bold" id="years-experience">0 years</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Specialization</small>
+                                <div class="fw-bold" id="specialization">Specialization</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-primary btn-sm" onclick="bookAppointment()">Book Appointment</button>
+                            <button class="btn btn-outline-primary btn-sm" onclick="sendInquiry()">Send Inquiry</button>
+                        </div>
+                    </div>
+                </div>
+
+                <h4>Properties Listed</h4>
+                <div id="property-listings" class="row">
+                    <div class="col-12 text-center py-4">
+                        <p>No properties listed.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="agent-contact card mb-4">
+                    <div class="card-body">
+                        <h5>Contact Information</h5>
+                        <p>Email: <span id="agent-email">agent@example.com</span></p>
+                        <p>Phone: <span id="agent-phone">N/A</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="error-message" class="alert alert-danger" style="display: none;">
+        <h4>Error Loading Profile</h4>
+        <p>Unable to load agent profile. Please try again later.</p>
+        <a href="{% url 'agents:agent-list' %}" class="btn btn-primary">Back to Agents</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const agentId = {{ agent_id }};
+    loadAgentDetail(agentId);
+});
+
+function loadAgentDetail(agentId) {
+    const endpoint = `/agents/api/agents/${agentId}/`;
+
+    fetch(endpoint)
+        .then(response => response.json())
+        .then(agent => {
+            document.querySelector('#agent-loading').style.display = 'none';
+            displayAgentDetail(agent);
+            document.querySelector('#agent-detail').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error loading agent:', error);
+            document.querySelector('#agent-loading').style.display = 'none';
+            document.querySelector('#error-message').style.display = 'block';
+        });
+}
+
+function displayAgentDetail(agent) {
+    document.querySelector('#agent-profile-image').src = agent.profile_image || '/static/img/default-agent.jpg';
+    document.querySelector('#agent-name').textContent = agent.full_name;
+    document.querySelector('#agency-name').textContent = agent.agency_name || 'Independent Agent';
+    document.querySelector('#agent-bio').textContent = agent.bio || 'Professional real estate agent.';
+    document.querySelector('#years-experience').textContent = `${agent.years_experience} years`;
+    document.querySelector('#specialization').textContent = agent.specialization || 'General';
+    document.querySelector('#agent-email').textContent = agent.email;
+    document.querySelector('#agent-phone').textContent = agent.phone || 'N/A';
+
+    // Display star rating
+    const stars = '★'.repeat(Math.floor(agent.rating)) + '☆'.repeat(5 - Math.floor(agent.rating));
+    document.querySelector('.stars').textContent = stars;
+
+    // Display properties
+    const properties = agent.properties || [];
+    const propertyListings = document.querySelector('#property-listings');
+    propertyListings.innerHTML = '';
+
+    if (properties.length > 0) {
+        properties.forEach(property => {
+            const propertyCard = document.createElement('div');
+            propertyCard.className = 'col-md-6 mb-4';
+            propertyCard.innerHTML = `
+                <div class="card h-100">
+                    <img src="${property.image || '/static/img/no-image.jpg'}" class="card-img-top" alt="${property.title}">
+                    <div class="card-body">
+                        <h5 class="card-title">${property.title}</h5>
+                        <p class="card-text">${property.address}</p>
+                        <a href="/properties/property/${property.id}/" class="btn btn-primary btn-sm">View Details</a>
+                    </div>
+                </div>
+            `;
+            propertyListings.appendChild(propertyCard);
+        });
+    } else {
+        propertyListings.innerHTML = '<div class="col-12 text-center py-4"><p>No properties listed.</p></div>';
+    }
+}
+
+function bookAppointment() {
+    // Implement booking functionality
+    alert('Functionality to book appointment will be implemented here.');
+}
+
+function sendInquiry() {
+    // Implement send inquiry functionality
+    alert('Functionality to send inquiry will be implemented here.');
+}
+</script>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.agent-profile img {
+    transition: transform 0.3s ease;
+}
+
+.agent-profile img:hover {
+    transform: scale(1.05);
+}
+
+.agent-contact {
+    position: sticky;
+    top: 20px;
+}
+
+.stars {
+    font-size: 1.2rem;
+    color: #ffc107;
+}
+</style>
+{% endblock %}
+

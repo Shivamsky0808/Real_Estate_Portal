@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+
+{% block title %}Properties - Real Estate Portal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="filter-sidebar">
+            <h4>Filter Properties</h4>
+            <form id="filter-form">
+                <div class="mb-3">
+                    <label for="property_type" class="form-label">Property Type</label>
+                    <select class="form-select" id="property_type" name="property_type">
+                        <option value="">All Types</option>
+                        <option value="house">House</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="condo">Condo</option>
+                        <option value="townhouse">Townhouse</option>
+                        <option value="commercial">Commercial</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="listing_type" class="form-label">Listing Type</label>
+                    <select class="form-select" id="listing_type" name="listing_type">
+                        <option value="">All</option>
+                        <option value="sale">For Sale</option>
+                        <option value="rent">For Rent</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="city" class="form-label">City</label>
+                    <input type="text" class="form-control" id="city" name="city" placeholder="Enter city">
+                </div>
+                <div class="mb-3">
+                    <label for="min_price" class="form-label">Min Price</label>
+                    <input type="number" class="form-control" id="min_price" name="min_price" placeholder="0">
+                </div>
+                <div class="mb-3">
+                    <label for="max_price" class="form-label">Max Price</label>
+                    <input type="number" class="form-control" id="max_price" name="max_price" placeholder="Any">
+                </div>
+                <div class="mb-3">
+                    <label for="bedrooms" class="form-label">Bedrooms</label>
+                    <select class="form-select" id="bedrooms" name="bedrooms">
+                        <option value="">Any</option>
+                        <option value="1">1+</option>
+                        <option value="2">2+</option>
+                        <option value="3">3+</option>
+                        <option value="4">4+</option>
+                        <option value="5">5+</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <button type="button" class="btn btn-secondary" id="clear-filters">Clear</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Properties</h2>
+            <div class="d-flex align-items-center">
+                <label for="sort" class="form-label me-2">Sort by:</label>
+                <select class="form-select" id="sort" name="ordering" style="width: auto;">
+                    <option value="-created_at">Newest First</option>
+                    <option value="created_at">Oldest First</option>
+                    <option value="price">Price: Low to High</option>
+                    <option value="-price">Price: High to Low</option>
+                    <option value="bedrooms">Bedrooms</option>
+                    <option value="-bedrooms">Bedrooms (Desc)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div id="properties-container" class="row">
+            <!-- Properties will be loaded here via JavaScript -->
+        </div>
+        
+        <div id="loading" class="text-center py-4" style="display: none;">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        <div id="no-results" class="text-center py-4" style="display: none;">
+            <h4>No properties found</h4>
+            <p>Try adjusting your search criteria.</p>
+        </div>
+        
+        <!-- Pagination -->
+        <div id="pagination" class="d-flex justify-content-center mt-4">
+            <!-- Pagination buttons will be added here -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentPage = 1;
+let currentFilters = {};
+
+$(document).ready(function() {
+    loadProperties();
+    
+    // Filter form submission
+    $('#filter-form').on('submit', function(e) {
+        e.preventDefault();
+        currentPage = 1;
+        loadProperties();
+    });
+    
+    // Sort change
+    $('#sort').on('change', function() {
+        currentPage = 1;
+        loadProperties();
+    });
+    
+    // Clear filters
+    $('#clear-filters').on('click', function() {
+        $('#filter-form')[0].reset();
+        currentPage = 1;
+        loadProperties();
+    });
+});
+
+function loadProperties() {
+    console.log('Loading properties...');
+    $('#loading').show();
+    $('#properties-container').empty();
+    $('#no-results').hide();
+    
+    // Get form data
+    const formData = new FormData(document.getElementById('filter-form'));
+    const params = {};
+    
+    // Convert form data to object
+    for (let [key, value] of formData.entries()) {
+        if (value) {
+            params[key] = value;
+        }
+    }
+    
+    // Add sorting
+    const ordering = $('#sort').val();
+    if (ordering) {
+        params['ordering'] = ordering;
+    }
+    console.log('Ordering:', ordering);
+    
+    // Add pagination
+    params['page'] = currentPage;
+    console.log('Page:', currentPage);
+    
+    $.ajax({
+        url: '{% url "properties:property-list-api" %}',
+        type: 'GET',
+        data: params,
+        success: function(response) {
+            console.log('Response:', response);
+            $('#loading').hide();
+            if (response.results && response.results.length > 0) {
+                displayProperties(response.results);
+                updatePagination(response);
+            } else {
+                $('#no-results').show();
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#loading').hide();
+            console.error('Error loading properties:', error);
+            alert('Error loading properties. Please try again.');
+        }
+    });
+}
+
+function displayProperties(properties) {
+    const container = $('#properties-container');
+    container.empty();
+    
+    properties.forEach(function(property) {
+        const statusClass = 'status-' + property.status;
+        const propertyCard = `
+            <div class="col-md-4 mb-4">
+                <div class="property-card">
+                    <img src="${property.primary_image || '/static/img/no-image.svg'}" 
+                         alt="${property.title}" class="property-image">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title">${property.title}</h5>
+                            <span class="status-badge ${statusClass}">${property.status}</span>
+                        </div>
+                        <p class="card-text text-muted">${property.address}, ${property.city}, ${property.state}</p>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="price-badge">₹${parseFloat(property.price).toLocaleString('en-IN')}</span>
+                            <small class="text-muted">${property.listing_type}</small>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <small class="text-muted">
+                                ${property.bedrooms} bed • ${property.bathrooms} bath • ${property.area} sqft
+                            </small>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <a href="/properties/property/${property.id}/" class="btn btn-primary btn-sm">View Details</a>
+                            <a href="/bookings/book/${property.id}/" class="btn btn-outline-primary btn-sm">Book Viewing</a>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">Agent: ${property.agent_name}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.append(propertyCard);
+    });
+}
+
+function updatePagination(response) {
+    const pagination = $('#pagination');
+    pagination.empty();
+    
+    if (response.count > 20) { // Assuming page size is 20
+        const totalPages = Math.ceil(response.count / 20);
+        
+        // Previous button
+        if (response.previous) {
+            pagination.append(`
+                <button class="btn btn-outline-primary me-2" onclick="changePage(${currentPage - 1})">
+                    Previous
+                </button>
+            `);
+        }
+        
+        // Page numbers
+        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+            const activeClass = i === currentPage ? 'btn-primary' : 'btn-outline-primary';
+            pagination.append(`
+                <button class="btn ${activeClass} me-1" onclick="changePage(${i})">
+                    ${i}
+                </button>
+            `);
+        }
+        
+        // Next button
+        if (response.next) {
+            pagination.append(`
+                <button class="btn btn-outline-primary ms-2" onclick="changePage(${currentPage + 1})">
+                    Next
+                </button>
+            `);
+        }
+    }
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadProperties();
+}
+</script>
+{% endblock %}

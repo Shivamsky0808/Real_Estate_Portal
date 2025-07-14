@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Agent Dashboard - Real Estate Portal{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <h2>Agent Dashboard</h2>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Your Listings</h5>
+                    <p class="card-text">Manage all your property listings and viewings here.</p>
+                    <a href="{% url 'agents:property-listings' %}" class="btn btn-primary">Manage Listings</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Upcoming Appointments</h5>
+                    <p class="card-text">Keep track of your scheduled property viewings and client meetings.</p>
+                    <a href="{% url 'agents:appointments' %}" class="btn btn-primary">View Appointments</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Inquiries</h5>
+                    <p class="card-text">Respond to client inquiries about properties.</p>
+                    <a href="{% url 'agents:inquiries' %}" class="btn btn-primary">View Inquiries</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Profile Settings</h5>
+                    <p class="card-text">Update your profile information and contact details.</p>
+                    <a href="{% url 'agents:profile-settings' %}" class="btn btn-primary">Edit Profile</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+

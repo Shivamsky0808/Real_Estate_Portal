@@ -1,0 +1,582 @@
+{% extends 'base.html' %}
+
+{% block title %}Property Map - Real Estate Portal{% endblock %}
+
+{% block leaflet_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+{% endblock %}
+
+{% block content %}
+<div class="map-page-container">
+<div class="row">
+    <div class="col-md-3">
+        <div class="filter-sidebar">
+            <h4>Filter Properties</h4>
+            <form id="map-filter-form">
+                <div class="mb-3">
+                    <label for="map_property_type" class="form-label">Property Type</label>
+                    <select class="form-select" id="map_property_type" name="property_type">
+                        <option value="">All Types</option>
+                        <option value="house">House</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="condo">Condo</option>
+                        <option value="townhouse">Townhouse</option>
+                        <option value="commercial">Commercial</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="map_listing_type" class="form-label">Listing Type</label>
+                    <select class="form-select" id="map_listing_type" name="listing_type">
+                        <option value="">All</option>
+                        <option value="sale">For Sale</option>
+                        <option value="rent">For Rent</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="map_city" class="form-label">City</label>
+                    <input type="text" class="form-control" id="map_city" name="city" placeholder="Enter city">
+                </div>
+                <div class="mb-3">
+                    <label for="map_min_price" class="form-label">Min Price</label>
+                    <input type="number" class="form-control" id="map_min_price" name="min_price" placeholder="0">
+                </div>
+                <div class="mb-3">
+                    <label for="map_max_price" class="form-label">Max Price</label>
+                    <input type="number" class="form-control" id="map_max_price" name="max_price" placeholder="Any">
+                </div>
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <button type="button" class="btn btn-secondary" id="clear-map-filters">Clear</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-9 map-column">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Property Map</h2>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="mapType" id="roadmap" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="roadmap">Roadmap</label>
+                
+                <input type="radio" class="btn-check" name="mapType" id="satellite" autocomplete="off">
+                <label class="btn btn-outline-primary" for="satellite">Satellite</label>
+                
+                <input type="radio" class="btn-check" name="mapType" id="hybrid" autocomplete="off">
+                <label class="btn btn-outline-primary" for="hybrid">Hybrid</label>
+            </div>
+        </div>
+        <div id="map" class="map-container"></div>
+        <div id="property-count" class="mt-2 text-muted">
+            <i class="fas fa-map-marker-alt me-1"></i>
+            <span id="marker-count">0</span> properties shown
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+let map;
+let markers = [];
+let markerClusterGroup;
+let tileLayers = {};
+let currentTileLayer;
+
+function initMap() {
+    // Ensure the map container has proper dimensions before initialization
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer) {
+        console.error('Map container not found');
+        return;
+    }
+    
+    // Force explicit height and width on the map container
+    mapContainer.style.height = '600px';
+    mapContainer.style.width = '100%';
+    mapContainer.style.display = 'block';
+    mapContainer.style.position = 'relative';
+    
+    // Initialize the map with Leaflet
+    map = L.map('map', {
+        center: [20.5937, 78.9629],
+        zoom: 5,
+        zoomControl: true,
+        scrollWheelZoom: true,
+        dragging: true,
+        touchZoom: true,
+        doubleClickZoom: true,
+        boxZoom: true,
+        keyboard: true,
+        tap: true
+    });
+
+    // Define different tile layers
+    tileLayers.roadmap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    tileLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+    });
+
+    tileLayers.hybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+    });
+
+    // Add labels overlay for hybrid view
+    const hybridLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: ''
+    });
+
+    // Set default layer
+    currentTileLayer = tileLayers.roadmap;
+    currentTileLayer.addTo(map);
+
+    // Initialize marker cluster group
+    markerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 80,
+        iconCreateFunction: function(cluster) {
+            const count = cluster.getChildCount();
+            let className = 'marker-cluster-';
+            if (count < 10) {
+                className += 'small';
+            } else if (count < 100) {
+                className += 'medium';
+            } else {
+                className += 'large';
+            }
+            return new L.DivIcon({
+                html: '<div><span>' + count + '</span></div>',
+                className: 'marker-cluster ' + className,
+                iconSize: new L.Point(40, 40)
+            });
+        }
+    });
+    map.addLayer(markerClusterGroup);
+
+    // Force map to invalidate size after initialization
+    setTimeout(() => {
+        if (map && map.getContainer()) {
+            map.invalidateSize();
+            // Ensure container dimensions are correct
+            const container = map.getContainer();
+            container.style.height = '600px';
+            container.style.width = '100%';
+            container.style.display = 'block';
+        }
+    }, 100);
+    
+    // Additional resize handling after a longer delay
+    setTimeout(() => {
+        if (map && map.getContainer()) {
+            map.invalidateSize();
+            // Double-check dimensions are maintained
+            const container = map.getContainer();
+            container.style.height = '600px';
+            container.style.width = '100%';
+        }
+    }, 500);
+    
+    // Additional check after page is fully loaded
+    setTimeout(() => {
+        if (map && map.getContainer()) {
+            map.invalidateSize();
+            console.log('Map container dimensions:', map.getContainer().offsetWidth, 'x', map.getContainer().offsetHeight);
+        }
+    }, 1000);
+
+    // Load initial properties
+    loadMapProperties();
+
+    // Map type change handlers
+    document.getElementById('roadmap').addEventListener('change', function() {
+        if (this.checked) {
+            map.removeLayer(currentTileLayer);
+            if (map.hasLayer(hybridLabels)) {
+                map.removeLayer(hybridLabels);
+            }
+            currentTileLayer = tileLayers.roadmap;
+            currentTileLayer.addTo(map);
+        }
+    });
+
+    document.getElementById('satellite').addEventListener('change', function() {
+        if (this.checked) {
+            map.removeLayer(currentTileLayer);
+            if (map.hasLayer(hybridLabels)) {
+                map.removeLayer(hybridLabels);
+            }
+            currentTileLayer = tileLayers.satellite;
+            currentTileLayer.addTo(map);
+        }
+    });
+
+    document.getElementById('hybrid').addEventListener('change', function() {
+        if (this.checked) {
+            map.removeLayer(currentTileLayer);
+            currentTileLayer = tileLayers.hybrid;
+            currentTileLayer.addTo(map);
+            hybridLabels.addTo(map);
+        }
+    });
+
+    // Filter form submission
+    document.getElementById('map-filter-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadMapProperties();
+    });
+
+    // Clear filters
+    document.getElementById('clear-map-filters').addEventListener('click', function() {
+        document.getElementById('map-filter-form').reset();
+        loadMapProperties();
+    });
+}
+
+function loadMapProperties() {
+    // Show loading state
+    document.getElementById('marker-count').textContent = 'Loading...';
+    
+    // Get form data
+    const formData = new FormData(document.getElementById('map-filter-form'));
+    const params = {};
+    
+    // Convert form data to object
+    for (let [key, value] of formData.entries()) {
+        if (value) {
+            params[key] = value;
+        }
+    }
+
+    // Build query string
+    const queryString = new URLSearchParams(params).toString();
+    const url = `/properties/api/properties/${queryString ? '?' + queryString : ''}`;
+
+    // Clear existing markers
+    clearMarkers();
+
+    // Load properties from API
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.results) {
+                let validProperties = 0;
+                const bounds = [];
+                const newMarkers = [];
+
+                data.results.forEach(property => {
+                    // Validate coordinates
+                    const lat = parseFloat(property.latitude);
+                    const lng = parseFloat(property.longitude);
+                    
+                    if (lat && lng && !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                        validProperties++;
+                        
+                        // Create custom marker icon based on property type
+                        const markerIcon = createCustomMarker(property.property_type, property.listing_type);
+                        
+                        // Create marker with Leaflet
+                        const marker = L.marker([lat, lng], { icon: markerIcon })
+                            .bindPopup(createPopupContent(property));
+
+                        newMarkers.push(marker);
+                        bounds.push([lat, lng]);
+                    }
+                });
+
+                // Add all markers to cluster group
+                markerClusterGroup.addLayers(newMarkers);
+                markers = newMarkers;
+
+                // Update marker count
+                document.getElementById('marker-count').textContent = validProperties;
+
+                // Fit map to show all markers if we have any
+                if (validProperties > 0 && bounds.length > 0) {
+                    if (validProperties === 1) {
+                        map.setView(bounds[0], 15);
+                    } else {
+                        map.fitBounds(bounds, { padding: [20, 20] });
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading properties:', error);
+            document.getElementById('marker-count').textContent = 'Error loading';
+        });
+}
+
+function createCustomMarker(propertyType, listingType) {
+    const color = listingType === 'rent' ? '#007bff' : '#28a745';
+    const icon = getPropertyIcon(propertyType);
+    
+    return L.divIcon({
+        html: `<div style="background: ${color}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 14px;">${icon}</div>`,
+        className: 'custom-property-marker',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
+    });
+}
+
+function getPropertyIcon(propertyType) {
+    const icons = {
+        'house': '🏠',
+        'apartment': '🏢',
+        'condo': '🏬',
+        'townhouse': '🏘️',
+        'commercial': '🏢'
+    };
+    return icons[propertyType] || '🏠';
+}
+
+function createPopupContent(property) {
+    return `
+        <div style="max-width: 300px; font-family: Arial, sans-serif;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <img src="${property.primary_image || '/static/img/no-image.svg'}" 
+                     alt="${property.title}" 
+                     style="width: 60px; height: 60px; object-fit: cover; margin-right: 10px; border-radius: 4px; border: 1px solid #ddd;">
+                <div>
+                    <h6 style="margin: 0 0 5px 0; font-size: 14px; font-weight: bold;">${property.title}</h6>
+                    <small style="color: #666; font-size: 12px;">${property.property_type} • ${property.listing_type}</small>
+                </div>
+            </div>
+            <p style="margin: 5px 0; font-size: 13px; color: #555;">
+                <i class="fas fa-map-marker-alt" style="margin-right: 5px; color: #dc3545;"></i>
+                ${property.address}, ${property.city}
+            </p>
+            <p style="margin: 5px 0; font-size: 16px; font-weight: bold; color: #28a745;">
+                ₹${parseFloat(property.price).toLocaleString('en-IN')}
+            </p>
+            <div style="display: flex; justify-content: space-between; margin: 10px 0; font-size: 12px; color: #666;">
+                <span>${property.bedrooms} bed • ${property.bathrooms} bath</span>
+                <span>${property.area} sqft</span>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 5px;">
+                <a href="/properties/property/${property.id}/" 
+                   style="background: #007bff; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; flex: 1; text-align: center;">View Details</a>
+                <a href="/bookings/book/${property.id}/" 
+                   style="background: white; color: #007bff; padding: 5px 10px; border: 1px solid #007bff; border-radius: 4px; text-decoration: none; font-size: 12px; flex: 1; text-align: center;">Book Now</a>
+            </div>
+        </div>
+    `;
+}
+
+function clearMarkers() {
+    markerClusterGroup.clearLayers();
+    markers = [];
+}
+
+// Initialize map when page loads
+$(document).ready(function() {
+    // Add a small delay to ensure DOM is fully rendered
+    setTimeout(() => {
+        initMap();
+    }, 100);
+});
+
+// Handle window resize to ensure map renders properly
+$(window).resize(function() {
+    if (map) {
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.map-page-container {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    position: relative;
+    min-height: 700px;
+    width: 100%;
+    display: block;
+}
+
+.map-container {
+    height: 600px !important;
+    min-height: 600px !important;
+    width: 100% !important;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    background-color: #ffffff;
+    margin: 0;
+    max-width: 100%;
+    display: block !important;
+}
+
+#map {
+    height: 600px !important;
+    min-height: 600px !important;
+    width: 100% !important;
+    z-index: 1;
+    position: relative;
+    max-width: 100%;
+    display: block !important;
+    background-color: #f0f0f0;
+}
+
+/* Fix for Bootstrap grid interference */
+.map-column {
+    position: relative;
+    min-height: 600px;
+    padding-right: 15px;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+/* Ensure Bootstrap row doesn't interfere */
+.map-page-container .row {
+    margin-left: 0;
+    margin-right: 0;
+    overflow: hidden;
+}
+
+.map-page-container .row > [class*="col-"] {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+/* Ensure proper sizing and containment */
+.leaflet-container {
+    height: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 8px;
+    outline: none;
+    position: relative !important;
+    z-index: 1;
+}
+
+/* Prevent leaflet panes from overflowing */
+.leaflet-map-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-marker-pane,
+.leaflet-popup-pane,
+.leaflet-control-pane {
+    max-width: 100% !important;
+}
+
+.filter-sidebar {
+    max-height: 600px;
+    overflow-y: auto;
+    position: sticky;
+    top: 20px;
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+/* Fix for mobile responsiveness */
+@media (max-width: 768px) {
+    .map-container {
+        height: 400px;
+    }
+    
+    .filter-sidebar {
+        margin-bottom: 20px;
+        max-height: none;
+        position: static;
+    }
+    
+    .map-column {
+        padding-right: 15px;
+    }
+}
+
+.btn-check:checked + .btn-outline-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+#property-count {
+    font-size: 0.9em;
+}
+
+/* Custom marker cluster styles */
+.marker-cluster-small {
+    background-color: rgba(181, 226, 140, 0.6);
+}
+.marker-cluster-small div {
+    background-color: rgba(110, 204, 57, 0.6);
+}
+
+.marker-cluster-medium {
+    background-color: rgba(241, 211, 87, 0.6);
+}
+.marker-cluster-medium div {
+    background-color: rgba(240, 194, 12, 0.6);
+}
+
+.marker-cluster-large {
+    background-color: rgba(253, 156, 115, 0.6);
+}
+.marker-cluster-large div {
+    background-color: rgba(241, 128, 23, 0.6);
+}
+
+.marker-cluster {
+    background-clip: padding-box;
+    border-radius: 20px;
+}
+.marker-cluster div {
+    width: 30px;
+    height: 30px;
+    margin-left: 5px;
+    margin-top: 5px;
+    text-align: center;
+    border-radius: 15px;
+    font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+}
+.marker-cluster span {
+    line-height: 30px;
+    color: #000;
+    font-weight: bold;
+}
+
+.custom-property-marker {
+    background: none;
+    border: none;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.leaflet-popup-content {
+    margin: 8px 12px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet MarkerCluster JavaScript -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+{% endblock %}
+

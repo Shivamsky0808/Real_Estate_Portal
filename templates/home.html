@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Real Estate Portal{% endblock %}
+
+{% block content %}
+<div class="hero-section bg-primary text-white text-center py-5 mb-5 rounded">
+    <h1 class="display-4">Find Your Dream Home</h1>
+    <p class="lead">Browse thousands of properties, connect with verified agents, and book viewings instantly</p>
+    <a href="{% url 'properties:property-list' %}" class="btn btn-light btn-lg">Browse Properties</a>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3>🏠 Property Listings</h3>
+                <p>Browse our extensive collection of properties for sale and rent with detailed information and high-quality images.</p>
+                <a href="{% url 'properties:property-list' %}" class="btn btn-primary">View Properties</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3>🗺️ Map View</h3>
+                <p>Explore properties on an interactive map to find the perfect location for your next home.</p>
+                <a href="{% url 'properties:property-map' %}" class="btn btn-primary">View Map</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3>👥 Expert Agents</h3>
+                <p>Connect with our verified real estate agents who can help you find the perfect property.</p>
+                <a href="{% url 'agents:agent-list' %}" class="btn btn-primary">Meet Agents</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-12">
+        <h2 class="text-center mb-4">Featured Properties</h2>
+        <div id="featured-properties" class="row">
+            <!-- Properties will be loaded here via JavaScript -->
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="bg-light p-4 rounded">
+            <h2 class="text-center mb-4">Why Choose Us?</h2>
+            <div class="row">
+                <div class="col-md-3 text-center">
+                    <h4>📋 Easy Booking</h4>
+                    <p>Schedule property viewings with just a few clicks</p>
+                </div>
+                <div class="col-md-3 text-center">
+                    <h4>✅ Verified Agents</h4>
+                    <p>All our agents are licensed and verified professionals</p>
+                </div>
+                <div class="col-md-3 text-center">
+                    <h4>🏃 Quick Response</h4>
+                    <p>Get responses to your inquiries within 24 hours</p>
+                </div>
+                <div class="col-md-3 text-center">
+                    <h4>💰 Best Prices</h4>
+                    <p>Competitive prices and transparent fee structure</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Load featured properties
+    $.ajax({
+        url: '{% url "properties:property-list-api" %}',
+        type: 'GET',
+        data: {
+            'ordering': '-created_at',
+            'page_size': 3
+        },
+        success: function(response) {
+            displayFeaturedProperties(response.results);
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading featured properties:', error);
+        }
+    });
+});
+
+function displayFeaturedProperties(properties) {
+    const container = $('#featured-properties');
+    container.empty();
+    
+    properties.forEach(function(property) {
+        const propertyCard = `
+            <div class="col-md-4 mb-4">
+                <div class="property-card">
+                    <img src="${property.primary_image || '/static/img/no-image.svg'}" 
+                         alt="${property.title}" class="property-image">
+                    <div class="card-body">
+                        <h5 class="card-title">${property.title}</h5>
+                        <p class="card-text">${property.address}, ${property.city}, ${property.state}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="price-badge">₹${parseFloat(property.price).toLocaleString('en-IN')}</span>
+                            <small class="text-muted">${property.bedrooms} bed, ${property.bathrooms} bath</small>
+                        </div>
+                        <div class="mt-2">
+                            <a href="/properties/property/${property.id}/" class="btn btn-primary btn-sm">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.append(propertyCard);
+    });
+}
+</script>
+{% endblock %}
