@@ -37,7 +37,7 @@ cd real_estate_portal
 
 2. Run the setup script:
 ```bash
-./setup.sh
+bash setup.sh
 ```
 
 3. Start the development server:
